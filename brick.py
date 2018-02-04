@@ -12,8 +12,8 @@ from collections import deque
 
 CNN_INPUT_WIDTH = 80
 CNN_INPUT_HEIGHT = 80
-CNN_INPUT_DEPTH = 1
 SERIES_LENGTH = 4
+CNN_INPUT_DEPTH = SERIES_LENGTH
 
 REWARD_COFF = 3.0
 
@@ -124,7 +124,7 @@ class DQN:
 		b_fc2=Tools.gen_bias([self.action_dim])
 		
 		self.Q_value=tf.matmul(h_fc1,W_fc2)+b_fc2
-		Q_action=tf.reduce_sum(tf.mul(self.Q_value,self.input_action),reduction_indices=1)
+		Q_action=tf.reduce_sum(tf.multiply(self.Q_value,self.input_action),reduction_indices=1)
 		self.cost=tf.reduce_mean(tf.square(self.input_y-Q_action))
 		
 		self.optimizer=tf.train.AdamOptimizer(1e-6).minimize(self.cost)
@@ -154,7 +154,7 @@ class DQN:
 			self.input_layer: next_state_batch
 		})
 		
-		for i in xrange(BATCH_SIZE):
+		for i in range(BATCH_SIZE):
 			if done_batch[i]:
 				y_batch.append(reward_batch[i])
 			else:
@@ -214,7 +214,7 @@ if __name__=='__main__':
 	saver=tf.train.Saver(max_to_keep=0)
 	
 	try:
-		for episode in xrange(EPISODE):
+		for episode in range(EPISODE):
 			
 			if episode % 10 == 0:
 				saver.save(session,'checkpoint/brick-ckpt',global_step=episode)
@@ -224,8 +224,8 @@ if __name__=='__main__':
 			
 			state_shadow=np.stack((state,state,state,state),axis=2)
 			
-			for step in xrange(STEP):
-				env.render()
+			for step in range(STEP):
+				# env.render()
 				action=agent.get_action(state_shadow)
 				next_state,reward,done,_=env.step(action)
 				next_state=np.reshape(ImageProcess.reshapeBin(next_state),(80,80,1))
