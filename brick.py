@@ -139,7 +139,7 @@ class DQN:
 			tf.summary.scalar('Q_value',tf.reduce_max(self.Q_value))
 			tf.summary.scalar('cost',self.cost)
 	
-	def train_network(self,episode):
+	def train_network(self,step):
 		self.time_step+=1
 		
 		minibatch=random.sample(self.replay_buffer,BATCH_SIZE)
@@ -164,9 +164,9 @@ class DQN:
 			self.input_action: action_batch,
 			self.input_y: y_batch
 		})
-		self.writer.add_summary(rs,episode)
+		self.writer.add_summary(rs,step)
 	
-	def percieve(self,state_shadow,action_index,reward,next_state_shadow,done,episode):
+	def percieve(self,state_shadow,action_index,reward,next_state_shadow,done,step):
 		action=np.zeros(self.action_dim)
 		action[action_index]=1
 		
@@ -181,7 +181,7 @@ class DQN:
 			self.replay_buffer.popleft()
 		
 		if len(self.replay_buffer)>BATCH_SIZE and self.observe_time > OBSERVE_TIME:
-			self.train_network(episode)
+			self.train_network(step)
 	
 	def get_greedy_action(self,state_shadow):
 		rst=self.Q_value.eval(feed_dict={
@@ -213,6 +213,8 @@ if __name__=='__main__':
 	agent=DQN(env,session,writer)
 	saver=tf.train.Saver(max_to_keep=0)
 	
+	full_step=0
+	
 	try:
 		for episode in range(EPISODE):
 			
@@ -231,10 +233,10 @@ if __name__=='__main__':
 				next_state=np.reshape(ImageProcess.reshapeBin(next_state),(80,80,1))
 				next_state_shadow=np.append(next_state,state_shadow[:,:,:3],axis=2)
 				
-				agent.percieve(state_shadow,action,reward,next_state_shadow,done,episode)
+				agent.percieve(state_shadow,action,reward,next_state_shadow,done,full_step)
 				state_shadow=next_state_shadow
-				print('Episode:',episode,'Step:',step,end='\r')
-				
+				print('Episode:',episode,'Step:',step,'Full step:',full_step,end='\r')
+				full_step+=1
 				if done:
 					print()
 					break
