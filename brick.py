@@ -7,6 +7,7 @@ import tensorflow as tf
 import numpy as np
 import random
 from collections import deque
+import gc
 
 
 
@@ -19,7 +20,7 @@ REWARD_COFF = 3.0
 
 INITIAL_EPSILON=1.0
 FINAL_EPSILON=0.0001
-REPLAY_SIZE=50000
+REPLAY_SIZE=5000
 BATCH_SIZE=32
 GAMMA=0.99
 OBSERVE_TIME=500
@@ -66,8 +67,9 @@ class Tools:
 class DQN:
 	def __init__(self,env,session,writer):
 		self.epsilon=INITIAL_EPSILON
-		self.replay_buffer=deque()
-		self.recent_history_queue=deque()
+		self.replay_buffer=np.zeros((REPLAY_SIZE,3,CNN_INPUT_WIDTH,CNN_INPUT_HEIGHT,CNN_INPUT_DEPTH))
+		self.active_replay_index=0
+		# self.recent_history_queue=deque()
 		self.action_dim=env.action_space.n
 		self.state_dim=CNN_INPUT_HEIGHT * CNN_INPUT_WIDTH
 		self.time_step=0
@@ -76,6 +78,8 @@ class DQN:
 		self.create_network()
 		self.observe_time=0
 		self.writer=writer
+		
+		self.temp=None
 		
 		self.session.run(tf.global_variables_initializer())
 		
@@ -142,45 +146,89 @@ class DQN:
 	def train_network(self,step):
 		self.time_step+=1
 		
-		minibatch=random.sample(self.replay_buffer,BATCH_SIZE)
-		state_batch=[data[0] for data in minibatch]
-		action_batch=[data[1] for data in minibatch]
-		reward_batch=[data[2] for data in minibatch]
-		next_state_batch=[data[3] for data in minibatch]
-		done_batch=[data[4] for data in minibatch]
-		
-		y_batch=[]
-		Q_value_batch=self.Q_value.eval(feed_dict={
-			self.input_layer: next_state_batch
-		})
+		if self.temp==None:
+			self.temp={}
+			
+			if self.active_replay_index<REPLAY_SIZE:
+				self.temp['minibatch']=np.array(random.sample(list(self.replay_buffer[:self.active_replay_index]),BATCH_SIZE))
+			else:
+				self.temp['minibatch']=np.array(random.sample(list(self.replay_buffer),BATCH_SIZE))
+			self.temp['state_batch']=self.temp['minibatch'][:,0,:,:,:]
+			self.temp['next_state_batch']=self.temp['minibatch'][:,1,:,:,:]
+			self.temp['action_index_batch']=self.temp['minibatch'][:,2,0,0,0].astype(int)
+			self.temp['reward_batch']=self.temp['minibatch'][:,2,1,0,0]
+			self.temp['done_batch']=self.temp['minibatch'][:,2,2,0,0]
+			
+			self.temp['action_batch']=np.zeros((BATCH_SIZE,self.action_dim))
+			for i in range(BATCH_SIZE):
+				self.temp['action_batch'][i][self.temp['action_index_batch'][i]]=1
+				self.temp['done_batch'][i]=True if self.temp['done_batch'][i]==1 else False
+			
+			self.temp['y_batch']=np.zeros(BATCH_SIZE)
+			self.temp['Q_value_batch']=self.Q_value.eval(feed_dict={
+				self.input_layer: self.temp['next_state_batch']
+			})
+		else:
+			if self.active_replay_index<REPLAY_SIZE:
+				self.temp['minibatch']=np.array(random.sample(list(self.replay_buffer[:self.active_replay_index]),BATCH_SIZE)).copy()
+			else:
+				self.temp['minibatch']=np.array(random.sample(list(self.replay_buffer),BATCH_SIZE)).copy()
+			self.temp['state_batch']=self.temp['minibatch'][:,0,:,:,:].copy()
+			self.temp['next_state_batch']=self.temp['minibatch'][:,1,:,:,:].copy()
+			self.temp['action_index_batch']=self.temp['minibatch'][:,2,0,0,0].astype(int).copy()
+			self.temp['reward_batch']=self.temp['minibatch'][:,2,1,0,0].copy()
+			self.temp['done_batch']=self.temp['minibatch'][:,2,2,0,0].copy()
+			
+#			self.temp['action_batch']=np.zeros((BATCH_SIZE,self.action_dim))
+			for i in range(BATCH_SIZE):
+				for j in range(self.action_dim):
+					if j==self.temp['action_index_batch'][i]:
+						self.temp['action_batch'][i][j]=1
+					else:
+						self.temp['action_batch'][i][j]=0
+				self.temp['done_batch'][i]=True if self.temp['done_batch'][i]==1 else False
+			
+			self.temp['y_batch']=np.zeros(BATCH_SIZE)
+			self.temp['Q_value_batch']=self.Q_value.eval(feed_dict={
+				self.input_layer: self.temp['next_state_batch']
+			})
 		
 		for i in range(BATCH_SIZE):
-			if done_batch[i]:
-				y_batch.append(reward_batch[i])
+			if self.temp['done_batch'][i]:
+				self.temp['y_batch'][i]=self.temp['reward_batch'][i]
 			else:
-				y_batch.append(reward_batch[i]+GAMMA*np.max(Q_value_batch[i]))
+				self.temp['y_batch'][i]=self.temp['reward_batch'][i]+GAMMA*np.max(self.temp['Q_value_batch'][i])
 		rs,_=self.session.run([tf.summary.merge_all(),self.optimizer],feed_dict={
-			self.input_layer: state_batch,
-			self.input_action: action_batch,
-			self.input_y: y_batch
+			self.input_layer: self.temp['state_batch'],
+			self.input_action: self.temp['action_batch'],
+			self.input_y: self.temp['y_batch']
 		})
+#		del y_batch
+#		gc.collect()
 		self.writer.add_summary(rs,step)
 	
 	def percieve(self,state_shadow,action_index,reward,next_state_shadow,done,step):
-		action=np.zeros(self.action_dim)
-		action[action_index]=1
+#		action=np.zeros(self.action_dim)
+#		action[action_index]=1
 		
-		self.replay_buffer.append([state_shadow,action,reward,next_state_shadow,done])
+		current_index=self.active_replay_index%REPLAY_SIZE
+		self.replay_buffer[current_index][0]=state_shadow
+		self.replay_buffer[current_index][1]=next_state_shadow
+		self.replay_buffer[current_index][2][0][0][0]=action_index
+		self.replay_buffer[current_index][2][1][0][0]=reward
+		self.replay_buffer[current_index][2][2][0][0]=done
+		
+		self.active_replay_index+=1
 		
 		self.observe_time+=1
 		
 		if self.observe_time % 1000 and self.observe_time <= OBSERVE_TIME == 0:
 			print('observe_time:',self.observe_time,end='\r')
 		
-		if len(self.replay_buffer)>REPLAY_SIZE:
-			self.replay_buffer.popleft()
+		# if len(self.replay_buffer)>REPLAY_SIZE:
+			# self.replay_buffer.popleft()
 		
-		if len(self.replay_buffer)>BATCH_SIZE and self.observe_time > OBSERVE_TIME:
+		if self.active_replay_index>BATCH_SIZE and self.observe_time > OBSERVE_TIME:
 			self.train_network(step)
 	
 	def get_greedy_action(self,state_shadow):
@@ -194,7 +242,7 @@ class DQN:
 		if self.epsilon >= FINAL_EPSILON and self.observe_time > OBSERVE_TIME:
 			self.epsilon -=(INITIAL_EPSILON-FINAL_EPSILON)/10000
 		
-		action=np.zeros(self.action_dim)
+#		action=np.zeros(self.action_dim)
 		action_index=None
 		if random.random()<self.epsilon:
 			action_index=random.randint(0,self.action_dim-1)
@@ -203,7 +251,7 @@ class DQN:
 		
 		return action_index
 
-if __name__=='__main__':
+def main():
 	env=gym.make(ENV_NAME)
 	state_shadow=None
 	next_state_shadow=None
@@ -212,6 +260,7 @@ if __name__=='__main__':
 	writer=tf.summary.FileWriter('./logs',session.graph)
 	agent=DQN(env,session,writer)
 	saver=tf.train.Saver(max_to_keep=0)
+#	agent.session.graph.finalize()
 	
 	full_step=0
 	
@@ -227,7 +276,7 @@ if __name__=='__main__':
 			state_shadow=np.stack((state,state,state,state),axis=2)
 			
 			for step in range(STEP):
-				# env.render()
+				env.render()
 				action=agent.get_action(state_shadow)
 				next_state,reward,done,_=env.step(action)
 				next_state=np.reshape(ImageProcess.reshapeBin(next_state),(80,80,1))
@@ -240,6 +289,10 @@ if __name__=='__main__':
 				if done:
 					print()
 					break
+			
 	finally:
 		writer.close()
 		session.close()
+
+if __name__=='__main__':
+	main()
