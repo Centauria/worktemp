@@ -8,7 +8,7 @@ import numpy as np
 import random
 from collections import deque
 import gc
-
+import tracemalloc
 
 
 CNN_INPUT_WIDTH = 80
@@ -20,7 +20,7 @@ REWARD_COFF = 3.0
 
 INITIAL_EPSILON=1.0
 FINAL_EPSILON=0.0001
-REPLAY_SIZE=5000
+REPLAY_SIZE=100
 BATCH_SIZE=32
 GAMMA=0.99
 OBSERVE_TIME=500
@@ -64,6 +64,7 @@ class Tools:
 	def gen_bias(shape):
 		bias=tf.constant(0.01,shape=shape)
 		return tf.Variable(bias)
+
 class DQN:
 	def __init__(self,env,session,writer):
 		self.epsilon=INITIAL_EPSILON
@@ -150,9 +151,9 @@ class DQN:
 			self.temp={}
 			
 			if self.active_replay_index<REPLAY_SIZE:
-				self.temp['minibatch']=np.array(random.sample(list(self.replay_buffer[:self.active_replay_index]),BATCH_SIZE))
+				self.temp['minibatch']=self.replay_buffer[:self.active_replay_index][random.sample(range(self.active_replay_index),BATCH_SIZE)]
 			else:
-				self.temp['minibatch']=np.array(random.sample(list(self.replay_buffer),BATCH_SIZE))
+				self.temp['minibatch']=self.replay_buffer[:self.active_replay_index][random.sample(range(REPLAY_SIZE),BATCH_SIZE)]
 			self.temp['state_batch']=self.temp['minibatch'][:,0,:,:,:]
 			self.temp['next_state_batch']=self.temp['minibatch'][:,1,:,:,:]
 			self.temp['action_index_batch']=self.temp['minibatch'][:,2,0,0,0].astype(int)
@@ -170,26 +171,22 @@ class DQN:
 			})
 		else:
 			if self.active_replay_index<REPLAY_SIZE:
-				self.temp['minibatch']=np.array(random.sample(list(self.replay_buffer[:self.active_replay_index]),BATCH_SIZE)).copy()
+				self.temp['minibatch'][:]=self.replay_buffer[:self.active_replay_index][random.sample(range(self.active_replay_index),BATCH_SIZE)]
 			else:
-				self.temp['minibatch']=np.array(random.sample(list(self.replay_buffer),BATCH_SIZE)).copy()
-			self.temp['state_batch']=self.temp['minibatch'][:,0,:,:,:].copy()
-			self.temp['next_state_batch']=self.temp['minibatch'][:,1,:,:,:].copy()
-			self.temp['action_index_batch']=self.temp['minibatch'][:,2,0,0,0].astype(int).copy()
-			self.temp['reward_batch']=self.temp['minibatch'][:,2,1,0,0].copy()
-			self.temp['done_batch']=self.temp['minibatch'][:,2,2,0,0].copy()
+				self.temp['minibatch'][:]=self.replay_buffer[:self.active_replay_index][random.sample(range(REPLAY_SIZE),BATCH_SIZE)]
+			self.temp['state_batch'][:]=self.temp['minibatch'][:,0,:,:,:]
+			self.temp['next_state_batch'][:]=self.temp['minibatch'][:,1,:,:,:]
+			self.temp['action_index_batch'][:]=self.temp['minibatch'][:,2,0,0,0].astype(int)
+			self.temp['reward_batch'][:]=self.temp['minibatch'][:,2,1,0,0]
+			self.temp['done_batch'][:]=self.temp['minibatch'][:,2,2,0,0]
 			
-#			self.temp['action_batch']=np.zeros((BATCH_SIZE,self.action_dim))
+			self.temp['action_batch'][:]=0
 			for i in range(BATCH_SIZE):
-				for j in range(self.action_dim):
-					if j==self.temp['action_index_batch'][i]:
-						self.temp['action_batch'][i][j]=1
-					else:
-						self.temp['action_batch'][i][j]=0
+				self.temp['action_batch'][i][self.temp['action_index_batch'][i]]=1
 				self.temp['done_batch'][i]=True if self.temp['done_batch'][i]==1 else False
 			
-			self.temp['y_batch']=np.zeros(BATCH_SIZE)
-			self.temp['Q_value_batch']=self.Q_value.eval(feed_dict={
+			self.temp['y_batch'][:]=0
+			self.temp['Q_value_batch'][:]=self.Q_value.eval(feed_dict={
 				self.input_layer: self.temp['next_state_batch']
 			})
 		
@@ -212,8 +209,8 @@ class DQN:
 #		action[action_index]=1
 		
 		current_index=self.active_replay_index%REPLAY_SIZE
-		self.replay_buffer[current_index][0]=state_shadow
-		self.replay_buffer[current_index][1]=next_state_shadow
+		self.replay_buffer[current_index][0][:]=state_shadow
+		self.replay_buffer[current_index][1][:]=next_state_shadow
 		self.replay_buffer[current_index][2][0][0][0]=action_index
 		self.replay_buffer[current_index][2][1][0][0]=reward
 		self.replay_buffer[current_index][2][2][0][0]=done
@@ -252,6 +249,7 @@ class DQN:
 		return action_index
 
 def main():
+	tracemalloc.start()
 	env=gym.make(ENV_NAME)
 	state_shadow=None
 	next_state_shadow=None
@@ -291,6 +289,11 @@ def main():
 					break
 			
 	finally:
+		snapshot = tracemalloc.take_snapshot()
+		top_stats = snapshot.statistics('lineno')
+		print("")
+		for stat in top_stats[:10]:
+			print(stat)
 		writer.close()
 		session.close()
 
