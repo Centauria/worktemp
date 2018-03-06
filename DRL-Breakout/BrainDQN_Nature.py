@@ -13,12 +13,12 @@ from collections import deque
 FRAME_PER_ACTION = 1
 GAMMA = 0.99 # decay rate of past observations
 OBSERVE = 500. # timesteps to observe before training
-EXPLORE = 200000. # frames over which to anneal epsilon
+EXPLORE = 50000000. #200000 #frames over which to anneal epsilon
 FINAL_EPSILON = 0#0.001 # final value of epsilon
 INITIAL_EPSILON = 0.1#0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000 # number of previous transitions to remember
 BATCH_SIZE = 32 # size of minibatch
-UPDATE_TIME = 100
+UPDATE_TIME = 5000 #100
 
 try:
     tf.mul
@@ -141,7 +141,7 @@ class BrainDQN:
 			self.copyTargetQNetwork()
 
 		
-	def setPerception(self,nextObservation,action_index,reward,terminal):
+	def setPerception(self,nextObservation,action_index,reward,terminal,episode):
 		#newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
 		action=np.zeros(self.actions)
 		action[action_index]=1
@@ -163,7 +163,7 @@ class BrainDQN:
 			state = "train"
 
 		print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-            "/ EPSILON", self.epsilon)
+            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
 
 		self.currentState = newState
 		self.timeStep += 1

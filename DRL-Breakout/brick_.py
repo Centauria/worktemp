@@ -77,7 +77,7 @@ def main():
 				action=agent.getAction()
 				next_state,reward,done,_=env.step(action)
 				next_state=np.reshape(ImageProcess.reshapeHalf(next_state),(80,80,1))
-				agent.setPerception(next_state,action,reward,done)
+				agent.setPerception(next_state,action,reward,done,episode)
 				if done:
 					break
 			
