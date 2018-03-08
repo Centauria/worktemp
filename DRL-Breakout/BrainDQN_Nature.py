@@ -19,14 +19,8 @@ INITIAL_EPSILON = 0.1#0.01 # starting value of epsilon
 REPLAY_MEMORY = 50000 # number of previous transitions to remember
 BATCH_SIZE = 32 # size of minibatch
 UPDATE_TIME = 5000 #100
-
-try:
-    tf.mul
-except:
-    # For new version of tensorflow
-    # tf.mul has been removed in new version of tensorflow
-    # Using tf.multiply to replace tf.mul
-    tf.mul = tf.multiply
+SAVE_TIME=10000
+LEARNING_RATE=0.01
 
 class BrainDQN:
 
@@ -37,19 +31,44 @@ class BrainDQN:
 		self.timeStep = 0
 		self.epsilon = INITIAL_EPSILON
 		self.actions = actions
-		# init Q network
-		self.stateInput,self.QValue,self.W_conv1,self.b_conv1,self.W_conv2,self.b_conv2,self.W_conv3,self.b_conv3,self.W_fc1,self.b_fc1,self.W_fc2,self.b_fc2 = self.createQNetwork()
+		# # init Q network
+		# self.stateInput,self.QValue,\
+		# self.W_conv1,self.b_conv1,\
+		# self.W_conv2,self.b_conv2,\
+		# self.W_conv3,self.b_conv3,\
+		# self.W_fc1,self.b_fc1,\
+		# self.W_fc2,self.b_fc2 = self.createQNetwork()
 
-		# init Target Q Network
-		self.stateInputT,self.QValueT,self.W_conv1T,self.b_conv1T,self.W_conv2T,self.b_conv2T,self.W_conv3T,self.b_conv3T,self.W_fc1T,self.b_fc1T,self.W_fc2T,self.b_fc2T = self.createQNetwork()
+		# # init Target Q Network
+		# self.stateInputT,self.QValueT,\
+		# self.W_conv1T,self.b_conv1T,\
+		# self.W_conv2T,self.b_conv2T,\
+		# self.W_conv3T,self.b_conv3T,\
+		# self.W_fc1T,self.b_fc1T,\
+		# self.W_fc2T,self.b_fc2T = self.createQNetwork()
 
-		self.copyTargetQNetworkOperation = [self.W_conv1T.assign(self.W_conv1),self.b_conv1T.assign(self.b_conv1),self.W_conv2T.assign(self.W_conv2),self.b_conv2T.assign(self.b_conv2),self.W_conv3T.assign(self.W_conv3),self.b_conv3T.assign(self.b_conv3),self.W_fc1T.assign(self.W_fc1),self.b_fc1T.assign(self.b_fc1),self.W_fc2T.assign(self.W_fc2),self.b_fc2T.assign(self.b_fc2)]
+		# self.copyTargetQNetworkOperation = [self.W_conv1T.assign(self.W_conv1),
+				      # self.b_conv1T.assign(self.b_conv1),
+				      # self.W_conv2T.assign(self.W_conv2),
+				      # self.b_conv2T.assign(self.b_conv2),
+				      # self.W_conv3T.assign(self.W_conv3),
+				      # self.b_conv3T.assign(self.b_conv3),
+				      # self.W_fc1T.assign(self.W_fc1),
+				      # self.b_fc1T.assign(self.b_fc1),
+				      # self.W_fc2T.assign(self.W_fc2),
+				      # self.b_fc2T.assign(self.b_fc2)]
 
-		self.createTrainingMethod()
+		# self.createTrainingMethod()
+		
+		self._build_net()
+		e_params=tf.get_collection('eval-net params')
+		t_params=tf.get_collection('target-net params')
+		self.copyTargetQNetworkOperation=[tf.assign(t,e) for t,e in zip(t_params,e_params)]
 
 		# saving and loading networks
 		self.saver = tf.train.Saver()
 		self.session = tf.InteractiveSession()
+		tf.summary.FileWriter("logs/", self.session.graph)
 		self.session.run(tf.initialize_all_variables())
 		checkpoint = tf.train.get_checkpoint_state("saved_networks")
 		if checkpoint and checkpoint.model_checkpoint_path:
@@ -58,58 +77,120 @@ class BrainDQN:
 		else:
 				print ("Could not find old network weights")
 
-
-	def createQNetwork(self):
-		# network weights
-		W_conv1 = self.weight_variable([8,8,4,32])
-		b_conv1 = self.bias_variable([32])
-
-		W_conv2 = self.weight_variable([4,4,32,64])
-		b_conv2 = self.bias_variable([64])
-
-		W_conv3 = self.weight_variable([3,3,64,64])
-		b_conv3 = self.bias_variable([64])
-
-		W_fc1 = self.weight_variable([1600,512])
-		b_fc1 = self.bias_variable([512])
-
-		W_fc2 = self.weight_variable([512,self.actions])
-		b_fc2 = self.bias_variable([self.actions])
-
-		# input layer
-
-		stateInput = tf.placeholder("float",[None,80,80,4])
-
-		# hidden layers
-		h_conv1 = tf.nn.relu(self.conv2d(stateInput,W_conv1,4) + b_conv1)
-		h_pool1 = self.max_pool_2x2(h_conv1)
-
-		h_conv2 = tf.nn.relu(self.conv2d(h_pool1,W_conv2,2) + b_conv2)
-
-		h_conv3 = tf.nn.relu(self.conv2d(h_conv2,W_conv3,1) + b_conv3)
-
-		h_conv3_flat = tf.reshape(h_conv3,[-1,1600])
-		h_fc1 = tf.nn.relu(tf.matmul(h_conv3_flat,W_fc1) + b_fc1)
-
-		# Q Value layer
-		QValue = tf.matmul(h_fc1,W_fc2) + b_fc2
-
-		return stateInput,QValue,W_conv1,b_conv1,W_conv2,b_conv2,W_conv3,b_conv3,W_fc1,b_fc1,W_fc2,b_fc2
-
-	def copyTargetQNetwork(self):
-		self.session.run(self.copyTargetQNetworkOperation)
-
-	def createTrainingMethod(self):
-		self.actionInput = tf.placeholder("float",[None,self.actions])
-		self.yInput = tf.placeholder("float", [None]) 
-		Q_Action = tf.reduce_sum(tf.mul(self.QValue, self.actionInput), reduction_indices = 1)
-		self.cost = tf.reduce_mean(tf.square(self.yInput - Q_Action))
-		self.trainStep = tf.train.AdamOptimizer(1e-6).minimize(self.cost)
-
+	def _build_net(self):
+		# build evaluate network
+		self.stateInput=tf.placeholder(tf.float32,[None,80,80,4],name='input')
+		self.actionInput=tf.placeholder(tf.float32,[None,self.actions],name='Q-target')
+		with tf.variable_scope('eval-net'):
+			# c_names(collections_names) are the collections to store variables
+			c_names,w_initializer,b_initializer=\
+				['eval-net params',tf.GraphKeys.GLOBAL_VARIABLES],\
+				tf.truncated_normal_initializer(stddev = 0.01),\
+				tf.constant_initializer(0.1)
+			
+			# first layer. collections is used later when assign to target net
+			with tf.variable_scope('conv1'):
+				w_conv1=tf.get_variable('w_conv1',[8,8,4,32],\
+					initializer=w_initializer,collections=c_names)
+				b_conv1=tf.get_variable('b_conv1',[32],\
+					initializer=b_initializer,collections=c_names)
+				h_conv1=tf.nn.relu(self.conv2d(self.stateInput,w_conv1,4) + b_conv1)
+				h_pool1=self.max_pool_2x2(h_conv1)
+			
+			# second layer. 
+			with tf.variable_scope('conv2'):
+				w_conv2=tf.get_variable('w_conv2',[4,4,32,64],\
+					initializer=w_initializer,collections=c_names)
+				b_conv2=tf.get_variable('b_conv2',[64],\
+					initializer=b_initializer,collections=c_names)
+				h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
+			
+			# third layer.
+			with tf.variable_scope('conv3'):
+				w_conv3=tf.get_variable('w_conv3',[3,3,64,64],\
+					initializer=w_initializer,collections=c_names)
+				b_conv3=tf.get_variable('b_conv3',[64],\
+					initializer=b_initializer,collections=c_names)
+				h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
+				h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
+			
+			# first full link layer.
+			with tf.variable_scope('fc1'):
+				w_fc1=tf.get_variable('w_fc1',[1600,512],\
+					initializer=w_initializer,collections=c_names)
+				b_fc1=tf.get_variable('b_fc1',[512],\
+					initializer=b_initializer,collections=c_names)
+				h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
+			
+			# Q value layer.
+			with tf.variable_scope('fc2'):
+				w_fc2=tf.get_variable('w_fc2',[512,self.actions],\
+					initializer=w_initializer,collections=c_names)
+				b_fc2=tf.get_variable('b_fc2',[self.actions],\
+					initializer=b_initializer,collections=c_names)
+				self.QValue=tf.matmul(h_fc1,w_fc2)+b_fc2
+		
+		with tf.variable_scope('loss'):
+			loss=tf.reduce_mean(tf.squared_difference(self.actionInput,self.QValue))
+		
+		with tf.variable_scope('train'):
+			# self.trainStep=tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
+			self.trainStep=tf.train.AdamOptimizer(1e-6).minimize(loss)
+		
+		# build target net
+		self.stateInputT=tf.placeholder(tf.float32,[None,80,80,4],name='input_')
+		self.yInput = tf.placeholder(tf.float32, [None],name='yinput_') 
+		with tf.variable_scope('target-net'):
+			c_names=['target-net params',tf.GraphKeys.GLOBAL_VARIABLES]
+			
+			# first layer. collections is used later when assign to target net
+			with tf.variable_scope('conv1'):
+				w_conv1=tf.get_variable('w_conv1',[8,8,4,32],\
+					initializer=w_initializer,collections=c_names)
+				b_conv1=tf.get_variable('b_conv1',[32],\
+					initializer=b_initializer,collections=c_names)
+				h_conv1=tf.nn.relu(self.conv2d(self.stateInputT,w_conv1,4) + b_conv1)
+				h_pool1=self.max_pool_2x2(h_conv1)
+			
+			# second layer. 
+			with tf.variable_scope('conv2'):
+				w_conv2=tf.get_variable('w_conv2',[4,4,32,64],\
+					initializer=w_initializer,collections=c_names)
+				b_conv2=tf.get_variable('b_conv2',[64],\
+					initializer=b_initializer,collections=c_names)
+				h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
+			
+			# third layer.
+			with tf.variable_scope('conv3'):
+				w_conv3=tf.get_variable('w_conv3',[3,3,64,64],\
+					initializer=w_initializer,collections=c_names)
+				b_conv3=tf.get_variable('b_conv3',[64],\
+					initializer=b_initializer,collections=c_names)
+				h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
+				h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
+			
+			# first full link layer.
+			with tf.variable_scope('fc1'):
+				w_fc1=tf.get_variable('w_fc1',[1600,512],\
+					initializer=w_initializer,collections=c_names)
+				b_fc1=tf.get_variable('b_fc1',[512],\
+					initializer=b_initializer,collections=c_names)
+				h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
+			
+			# Q value layer.
+			with tf.variable_scope('fc2'):
+				w_fc2=tf.get_variable('w_fc2',[512,self.actions],\
+					initializer=w_initializer,collections=c_names)
+				b_fc2=tf.get_variable('b_fc2',[self.actions],\
+					initializer=b_initializer,collections=c_names)
+				self.QValueT=tf.matmul(h_fc1,w_fc2)+b_fc2
+		
+		with tf.name_scope('summaries'):
+			tf.summary.image('input_layer',self.stateInput)
+			tf.summary.scalar('loss',loss)
+			tf.summary.histogram('Q_values',self.QValue)
 
 	def trainQNetwork(self):
-
-		
 		# Step 1: obtain random minibatch from replay memory
 		minibatch = random.sample(self.replayMemory,BATCH_SIZE)
 		state_batch = [data[0] for data in minibatch]
@@ -134,11 +215,11 @@ class BrainDQN:
 			})
 
 		# save network every 100000 iteration
-		if self.timeStep % 10000 == 0:
+		if self.timeStep % SAVE_TIME == 0:
 			self.saver.save(self.session, 'saved_networks/' + 'network' + '-dqn', global_step = self.timeStep)
 
 		if self.timeStep % UPDATE_TIME == 0:
-			self.copyTargetQNetwork()
+			self.session.run(self.copyTargetQNetworkOperation)
 
 		
 	def setPerception(self,nextObservation,action_index,reward,terminal,episode):
@@ -185,14 +266,6 @@ class BrainDQN:
 
 	def setInitState(self,observation):
 		self.currentState = np.stack((observation, observation, observation, observation), axis = 2)
-
-	def weight_variable(self,shape):
-		initial = tf.truncated_normal(shape, stddev = 0.01)
-		return tf.Variable(initial)
-
-	def bias_variable(self,shape):
-		initial = tf.constant(0.01, shape = shape)
-		return tf.Variable(initial)
 
 	def conv2d(self,x, W, stride):
 		return tf.nn.conv2d(x, W, strides = [1, stride, stride, 1], padding = "SAME")

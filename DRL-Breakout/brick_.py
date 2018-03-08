@@ -61,8 +61,6 @@ class Tools:
 def main():
 	env=gym.make(ENV_NAME)
 	
-	session=tf.InteractiveSession()
-	writer=tf.summary.FileWriter('./logs',session.graph)
 	agent=BrainDQN(env.action_space.n)
 	
 	try:
@@ -82,8 +80,7 @@ def main():
 					break
 			
 	finally:
-		writer.close()
-		session.close()
+		pass
 
 if __name__=='__main__':
 	main()
