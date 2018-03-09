@@ -16,6 +16,7 @@ OBSERVE = 500. # timesteps to observe before training
 EXPLORE = 50000000. #200000 #frames over which to anneal epsilon
 FINAL_EPSILON = 0#0.001 # final value of epsilon
 INITIAL_EPSILON = 0.1#0.01 # starting value of epsilon
+DELTA_EPSILON=(INITIAL_EPSILON - FINAL_EPSILON)/EXPLORE
 REPLAY_MEMORY = 50000 # number of previous transitions to remember
 BATCH_SIZE = 32 # size of minibatch
 UPDATE_TIME = 5000 #100
@@ -29,36 +30,9 @@ class BrainDQN:
 		self.replayMemory = deque()
 		# init some parameters
 		self.timeStep = 0
+		self.observe_time=0
 		self.epsilon = INITIAL_EPSILON
 		self.actions = actions
-		# # init Q network
-		# self.stateInput,self.QValue,\
-		# self.W_conv1,self.b_conv1,\
-		# self.W_conv2,self.b_conv2,\
-		# self.W_conv3,self.b_conv3,\
-		# self.W_fc1,self.b_fc1,\
-		# self.W_fc2,self.b_fc2 = self.createQNetwork()
-
-		# # init Target Q Network
-		# self.stateInputT,self.QValueT,\
-		# self.W_conv1T,self.b_conv1T,\
-		# self.W_conv2T,self.b_conv2T,\
-		# self.W_conv3T,self.b_conv3T,\
-		# self.W_fc1T,self.b_fc1T,\
-		# self.W_fc2T,self.b_fc2T = self.createQNetwork()
-
-		# self.copyTargetQNetworkOperation = [self.W_conv1T.assign(self.W_conv1),
-				      # self.b_conv1T.assign(self.b_conv1),
-				      # self.W_conv2T.assign(self.W_conv2),
-				      # self.b_conv2T.assign(self.b_conv2),
-				      # self.W_conv3T.assign(self.W_conv3),
-				      # self.b_conv3T.assign(self.b_conv3),
-				      # self.W_fc1T.assign(self.W_fc1),
-				      # self.b_fc1T.assign(self.b_fc1),
-				      # self.W_fc2T.assign(self.W_fc2),
-				      # self.b_fc2T.assign(self.b_fc2)]
-
-		# self.createTrainingMethod()
 		
 		self._build_net()
 		e_params=tf.get_collection('eval-net params')
@@ -67,15 +41,20 @@ class BrainDQN:
 
 		# saving and loading networks
 		self.saver = tf.train.Saver()
+		self.merge=tf.summary.merge_all()
 		self.session = tf.InteractiveSession()
-		tf.summary.FileWriter("logs/", self.session.graph)
-		self.session.run(tf.initialize_all_variables())
+		
+		self.writer=tf.summary.FileWriter("logs/", self.session.graph)
+		
+		self.session.run(tf.global_variables_initializer())
 		checkpoint = tf.train.get_checkpoint_state("saved_networks")
 		if checkpoint and checkpoint.model_checkpoint_path:
-				self.saver.restore(self.session, checkpoint.model_checkpoint_path)
-				print ("Successfully loaded:", checkpoint.model_checkpoint_path)
+			self.saver.restore(self.session, checkpoint.model_checkpoint_path)
+			print ("Successfully loaded:", checkpoint.model_checkpoint_path)
+			self.timeStep=int(checkpoint.model_checkpoint_path.split('-')[-1])
+			self.epsilon=INITIAL_EPSILON-DELTA_EPSILON*self.timeStep
 		else:
-				print ("Could not find old network weights")
+			print ("Could not find old network weights")
 
 	def _build_net(self):
 		# build evaluate network
@@ -199,24 +178,24 @@ class BrainDQN:
 		nextState_batch = [data[3] for data in minibatch]
 
 		# Step 2: calculate y 
-		y_batch = []
+		y_batch = np.zeros((BATCH_SIZE))
 		QValue_batch = self.QValueT.eval(feed_dict={self.stateInputT:nextState_batch})
 		for i in range(0,BATCH_SIZE):
 			terminal = minibatch[i][4]
 			if terminal:
-				y_batch.append(reward_batch[i])
+				y_batch[i]=reward_batch[i]
 			else:
-				y_batch.append(reward_batch[i] + GAMMA * np.max(QValue_batch[i]))
+				y_batch[i]=reward_batch[i] + GAMMA * np.max(QValue_batch[i])
 
 		self.trainStep.run(feed_dict={
 			self.yInput : y_batch,
 			self.actionInput : action_batch,
 			self.stateInput : state_batch
-			})
+		})
 
 		# save network every 100000 iteration
 		if self.timeStep % SAVE_TIME == 0:
-			self.saver.save(self.session, 'saved_networks/' + 'network' + '-dqn', global_step = self.timeStep)
+			self.saver.save(self.session,'saved_networks/network-dqn', global_step = self.timeStep)
 
 		if self.timeStep % UPDATE_TIME == 0:
 			self.session.run(self.copyTargetQNetworkOperation)
@@ -230,24 +209,34 @@ class BrainDQN:
 		self.replayMemory.append((self.currentState,action,reward,newState,terminal))
 		if len(self.replayMemory) > REPLAY_MEMORY:
 			self.replayMemory.popleft()
-		if self.timeStep > OBSERVE:
+		if self.observe_time<OBSERVE:
+			self.observe_time+=1
+			state = "observe"
+			# print info
+			print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+	            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+		else:
 			# Train the network
 			self.trainQNetwork()
-
-		# print info
-		state = ""
-		if self.timeStep <= OBSERVE:
-			state = "observe"
-		elif self.timeStep > OBSERVE and self.timeStep <= OBSERVE + EXPLORE:
-			state = "explore"
-		else:
-			state = "train"
-
-		print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
-
+			
+			if self.timeStep <= EXPLORE:
+				state = "explore"
+			else:
+				state = "train"
+				
+			# print info
+			print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+	            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+			
+			rs=self.merge.eval(feed_dict={
+				self.stateInput:[self.currentState],
+				self.actionInput:[action]
+			})
+			self.writer.add_summary(rs,global_step=self.timeStep)
+			
+			self.timeStep += 1
+		
 		self.currentState = newState
-		self.timeStep += 1
 
 	def getAction(self):
 		QValue = self.QValue.eval(feed_dict= {self.stateInput:[self.currentState]})[0]
@@ -259,8 +248,8 @@ class BrainDQN:
 				action_index = np.argmax(QValue)
 
 		# change episilon
-		if self.epsilon > FINAL_EPSILON and self.timeStep > OBSERVE:
-			self.epsilon -= (INITIAL_EPSILON - FINAL_EPSILON)/EXPLORE
+		if self.epsilon > FINAL_EPSILON and not self.observe_time < OBSERVE:
+			self.epsilon -= DELTA_EPSILON
 
 		return action_index
 
