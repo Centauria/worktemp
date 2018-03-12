@@ -5,11 +5,15 @@ Created on Mon Mar  5 15:46:18 2018
 @author: qxb-810
 """
 
+import os
 import cv2
 import gym
 import tensorflow as tf
 import numpy as np
+import shutil
+import moviepy
 from BrainDQN_Nature import BrainDQN
+from moviepy.editor import VideoClip
 
 CNN_INPUT_WIDTH = 80
 CNN_INPUT_HEIGHT = 80
@@ -58,6 +62,56 @@ class Tools:
 		bias=tf.constant(0.01,shape=shape)
 		return tf.Variable(bias)
 
+class Evaluator:
+	best=0
+	
+	def __init__(self,env,agent,tag):
+		self.env=env
+		self.agent=agent
+		self.tag=tag
+		self.n_episode=10
+		self.rewards=[]
+		self.frames=[]
+		self.fps=25
+		
+		agent.e_greedy=False
+	
+	def __del__(self):
+		self.agent.e_greedy=True
+	
+	def run(self):
+		for episode in range(self.n_episode):
+			done=False
+			frame=0
+			state=self.env.reset()
+			self.agent.setInitState(ImageProcess.reshapeHalf(state))
+			self.rewards.append(0)
+			# self.frames.append([])
+			# self.frames[-1].append(state)
+			cv2.imwrite('temp/%s-%s.png'%(episode,frame),state)
+			while not done:
+				action=self.agent.getAction()
+				state,reward,done,_=self.env.step(action)
+				self.agent.setPerception(np.reshape(ImageProcess.reshapeHalf(state),(80,80,1)),action,reward,done,episode)
+				self.rewards[-1]+=reward
+				# self.frames[-1].append(state)
+				frame+=1
+				cv2.imwrite('temp/%s-%s.png'%(episode,frame),state)
+			self.frames.append(frame)
+		
+		# self.allframes=np.concatenate(self.frames)
+		Evaluator.best=np.argmax(self.rewards)
+		print('All scores:',self.rewards)
+		print('Best score:',np.max(self.rewards))
+	
+	def make_frame_best(t):
+		frame=cv2.imread('temp/%s-%s.png'%(Evaluator.best,t))
+		return frame
+	
+	def export_best(self):
+		animation=VideoClip(Evaluator.make_frame_best,duration=self.frames[self.best]/self.fps)
+		animation.write_videofile('best-%s.mp4'%self.tag,fps=self.fps,codec='mpeg4')
+
 def main():
 	env=gym.make(ENV_NAME)
 	
@@ -71,13 +125,24 @@ def main():
 			agent.setInitState(state)
 			
 			for step in range(MAX_STEP):
-				env.render()
+				# env.render()
 				action=agent.getAction()
 				next_state,reward,done,_=env.step(action)
 				next_state=np.reshape(ImageProcess.reshapeHalf(next_state),(80,80,1))
 				agent.setPerception(next_state,action,reward,done,episode)
 				if done:
 					break
+			
+			if episode%10==3:
+				print('Generate evaluation video')
+				if not os.path.exists('temp'):
+					os.mkdir('temp')
+				evaluator=Evaluator(env,agent,episode)
+				evaluator.run()
+				evaluator.export_best()
+				# evaluator.export_all()
+				del evaluator
+				shutil.rmtree('temp')
 			
 	finally:
 		pass

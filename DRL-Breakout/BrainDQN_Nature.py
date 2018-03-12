@@ -11,28 +11,41 @@ from collections import deque
 
 # Hyper Parameters:
 FRAME_PER_ACTION = 1
-GAMMA = 0.99 # decay rate of past observations
 OBSERVE = 500. # timesteps to observe before training
 EXPLORE = 50000000. #200000 #frames over which to anneal epsilon
-FINAL_EPSILON = 0#0.001 # final value of epsilon
-INITIAL_EPSILON = 0.1#0.01 # starting value of epsilon
-DELTA_EPSILON=(INITIAL_EPSILON - FINAL_EPSILON)/EXPLORE
-REPLAY_MEMORY = 50000 # number of previous transitions to remember
-BATCH_SIZE = 32 # size of minibatch
-UPDATE_TIME = 5000 #100
 SAVE_TIME=10000
-LEARNING_RATE=0.01
 
 class BrainDQN:
 
-	def __init__(self,actions):
+	def __init__(
+			self,
+			actions,
+			learning_rate=0.01,
+			reward_decay=0.99,
+			initial_epsilon=0.1,
+			final_epsilon=0,
+			update_period=5000,
+			memory_size=50000,
+			batch_size=32,
+			e_greedy=True,
+			output_graph=False
+	):
 		# init replay memory
 		self.replayMemory = deque()
 		# init some parameters
 		self.timeStep = 0
 		self.observe_time=0
-		self.epsilon = INITIAL_EPSILON
 		self.actions = actions
+		self.lr=learning_rate
+		self.gamma = reward_decay # decay rate of past observations
+		self.initial_epsilon = initial_epsilon#0.01 # starting value of epsilon
+		self.final_epsilon = 0#0.001 # final value of epsilon
+		self.delta_epsilon=(initial_epsilon - final_epsilon)/EXPLORE
+		self.update_period = update_period #100
+		self.memory_size = memory_size # number of previous transitions to remember
+		self.batch_size = batch_size # size of minibatch
+		self.e_greedy=e_greedy
+		self.epsilon = self.initial_epsilon if e_greedy else self.final_epsilon
 		
 		self._build_net()
 		e_params=tf.get_collection('eval-net params')
@@ -52,7 +65,7 @@ class BrainDQN:
 			self.saver.restore(self.session, checkpoint.model_checkpoint_path)
 			print ("Successfully loaded:", checkpoint.model_checkpoint_path)
 			self.timeStep=int(checkpoint.model_checkpoint_path.split('-')[-1])
-			self.epsilon=INITIAL_EPSILON-DELTA_EPSILON*self.timeStep
+			self.epsilon=self.initial_epsilon-self.delta_epsilon*self.timeStep
 		else:
 			print ("Could not find old network weights")
 
@@ -113,7 +126,7 @@ class BrainDQN:
 			loss=tf.reduce_mean(tf.squared_difference(self.actionInput,self.QValue))
 		
 		with tf.variable_scope('train'):
-			# self.trainStep=tf.train.RMSPropOptimizer(LEARNING_RATE).minimize(loss)
+			# self.trainStep=tf.train.RMSPropOptimizer(self.lr).minimize(loss)
 			self.trainStep=tf.train.AdamOptimizer(1e-6).minimize(loss)
 		
 		# build target net
@@ -171,21 +184,21 @@ class BrainDQN:
 
 	def trainQNetwork(self):
 		# Step 1: obtain random minibatch from replay memory
-		minibatch = random.sample(self.replayMemory,BATCH_SIZE)
+		minibatch = random.sample(self.replayMemory,self.batch_size)
 		state_batch = [data[0] for data in minibatch]
 		action_batch = [data[1] for data in minibatch]
 		reward_batch = [data[2] for data in minibatch]
 		nextState_batch = [data[3] for data in minibatch]
 
 		# Step 2: calculate y 
-		y_batch = np.zeros((BATCH_SIZE))
+		y_batch = np.zeros((self.batch_size))
 		QValue_batch = self.QValueT.eval(feed_dict={self.stateInputT:nextState_batch})
-		for i in range(0,BATCH_SIZE):
+		for i in range(0,self.batch_size):
 			terminal = minibatch[i][4]
 			if terminal:
 				y_batch[i]=reward_batch[i]
 			else:
-				y_batch[i]=reward_batch[i] + GAMMA * np.max(QValue_batch[i])
+				y_batch[i]=reward_batch[i] + self.gamma * np.max(QValue_batch[i])
 
 		self.trainStep.run(feed_dict={
 			self.yInput : y_batch,
@@ -197,7 +210,7 @@ class BrainDQN:
 		if self.timeStep % SAVE_TIME == 0:
 			self.saver.save(self.session,'saved_networks/network-dqn', global_step = self.timeStep)
 
-		if self.timeStep % UPDATE_TIME == 0:
+		if self.timeStep % self.update_period == 0:
 			self.session.run(self.copyTargetQNetworkOperation)
 
 		
@@ -207,15 +220,15 @@ class BrainDQN:
 		action[action_index]=1
 		newState = np.append(self.currentState[:,:,1:],nextObservation,axis = 2)
 		self.replayMemory.append((self.currentState,action,reward,newState,terminal))
-		if len(self.replayMemory) > REPLAY_MEMORY:
+		if len(self.replayMemory) > self.memory_size:
 			self.replayMemory.popleft()
-		if self.observe_time<OBSERVE:
+		if self.e_greedy and self.observe_time<OBSERVE:
 			self.observe_time+=1
 			state = "observe"
 			# print info
 			print ("TIMESTEP", self.timeStep, "/ STATE", state, \
 	            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
-		else:
+		elif self.e_greedy:
 			# Train the network
 			self.trainQNetwork()
 			
@@ -235,6 +248,11 @@ class BrainDQN:
 			self.writer.add_summary(rs,global_step=self.timeStep)
 			
 			self.timeStep += 1
+		else:
+			state="evaluate"
+			# print info
+			print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+	            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
 		
 		self.currentState = newState
 
@@ -242,14 +260,14 @@ class BrainDQN:
 		QValue = self.QValue.eval(feed_dict= {self.stateInput:[self.currentState]})[0]
 		action_index = 0
 		if self.timeStep % FRAME_PER_ACTION == 0:
-			if random.random() <= self.epsilon:
+			if self.e_greedy and random.random() <= self.epsilon:
 				action_index = random.randrange(self.actions)
 			else:
 				action_index = np.argmax(QValue)
 
 		# change episilon
-		if self.epsilon > FINAL_EPSILON and not self.observe_time < OBSERVE:
-			self.epsilon -= DELTA_EPSILON
+		if self.e_greedy and self.epsilon > self.final_epsilon and not self.observe_time < OBSERVE:
+			self.epsilon -= self.delta_epsilon
 
 		return action_index
 
