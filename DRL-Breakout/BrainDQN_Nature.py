@@ -25,7 +25,7 @@ class BrainDQN:
 			initial_epsilon=0.1,
 			final_epsilon=0,
 			update_period=5000,
-			memory_size=50000,
+			memory_size=50000,#100000
 			batch_size=32,
 			e_greedy=True,
 			output_graph=False

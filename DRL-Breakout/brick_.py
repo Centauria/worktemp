@@ -62,8 +62,11 @@ class Tools:
 		bias=tf.constant(0.01,shape=shape)
 		return tf.Variable(bias)
 
+def make_frame_best(t):
+	frame=cv2.imread('temp/%s-%s.png'%(0,t))
+	return frame
+
 class Evaluator:
-	best=0
 	
 	def __init__(self,env,agent,tag):
 		self.env=env
@@ -104,12 +107,13 @@ class Evaluator:
 		print('All scores:',self.rewards)
 		print('Best score:',np.max(self.rewards))
 	
-	def make_frame_best(t):
-		frame=cv2.imread('temp/%s-%s.png'%(Evaluator.best,t))
-		return frame
+	
 	
 	def export_best(self):
-		animation=VideoClip(Evaluator.make_frame_best,duration=self.frames[self.best]/self.fps)
+		global make_frame_best
+		print('Eval-best=',0)
+		print('Eval-make-best=',make_frame_best)
+		animation=VideoClip(make_frame_best,duration=self.frames[0]/self.fps)
 		animation.write_videofile('best-%s.mp4'%self.tag,fps=self.fps,codec='mpeg4')
 
 def main():
