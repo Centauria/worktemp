@@ -25,10 +25,11 @@ class BrainDQN:
 			initial_epsilon=0.1,
 			final_epsilon=0,
 			update_period=5000,
-			memory_size=50000,#100000
+			memory_size=100000,
 			batch_size=32,
 			e_greedy=True,
-			output_graph=False
+			output_graph=False,
+			print_log=True
 	):
 		# init replay memory
 		self.replayMemory = deque()
@@ -46,6 +47,7 @@ class BrainDQN:
 		self.batch_size = batch_size # size of minibatch
 		self.e_greedy=e_greedy
 		self.epsilon = self.initial_epsilon if e_greedy else self.final_epsilon
+		self.print_log=print_log
 		
 		self._build_net()
 		e_params=tf.get_collection('eval-net params')
@@ -226,8 +228,9 @@ class BrainDQN:
 			self.observe_time+=1
 			state = "observe"
 			# print info
-			print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-	            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+			if self.print_log:
+				print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+					"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
 		elif self.e_greedy:
 			# Train the network
 			self.trainQNetwork()
@@ -238,8 +241,9 @@ class BrainDQN:
 				state = "train"
 				
 			# print info
-			print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-	            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+			if self.print_log:
+				print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+					"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
 			
 			rs=self.merge.eval(feed_dict={
 				self.stateInput:[self.currentState],
@@ -251,8 +255,9 @@ class BrainDQN:
 		else:
 			state="evaluate"
 			# print info
-			print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-	            "/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+			if self.print_log:
+				print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+					"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
 		
 		self.currentState = newState
 
