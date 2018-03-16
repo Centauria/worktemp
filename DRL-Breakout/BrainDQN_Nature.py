@@ -72,9 +72,11 @@ class BrainDQN:
 			print ("Could not find old network weights")
 
 	def _build_net(self):
+		tf.reset_default_graph()
 		# build evaluate network
 		self.stateInput=tf.placeholder(tf.float32,[None,80,80,4],name='input')
 		self.actionInput=tf.placeholder(tf.float32,[None,self.actions],name='Q-target')
+		self.yInput = tf.placeholder(tf.float32,[None],name='yinput')
 		with tf.variable_scope('eval-net'):
 			# c_names(collections_names) are the collections to store variables
 			c_names,w_initializer,b_initializer=\
@@ -88,8 +90,6 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv1=tf.get_variable('b_conv1',[32],\
 					initializer=b_initializer,collections=c_names)
-				h_conv1=tf.nn.relu(self.conv2d(self.stateInput,w_conv1,4) + b_conv1)
-				h_pool1=self.max_pool_2x2(h_conv1)
 			
 			# second layer. 
 			with tf.variable_scope('conv2'):
@@ -97,7 +97,6 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv2=tf.get_variable('b_conv2',[64],\
 					initializer=b_initializer,collections=c_names)
-				h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
 			
 			# third layer.
 			with tf.variable_scope('conv3'):
@@ -105,8 +104,6 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv3=tf.get_variable('b_conv3',[64],\
 					initializer=b_initializer,collections=c_names)
-				h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
-				h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
 			
 			# first full link layer.
 			with tf.variable_scope('fc1'):
@@ -114,7 +111,6 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_fc1=tf.get_variable('b_fc1',[512],\
 					initializer=b_initializer,collections=c_names)
-				h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
 			
 			# Q value layer.
 			with tf.variable_scope('fc2'):
@@ -122,10 +118,20 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_fc2=tf.get_variable('b_fc2',[self.actions],\
 					initializer=b_initializer,collections=c_names)
-				self.QValue=tf.matmul(h_fc1,w_fc2)+b_fc2
+			
+		with tf.variable_scope('eval-net-data'):
+			h_conv1=tf.nn.relu(self.conv2d(self.stateInput,w_conv1,4) + b_conv1)
+			h_pool1=self.max_pool_2x2(h_conv1)
+			h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
+			h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
+			h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
+			h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
+			self.QValue=tf.matmul(h_fc1,w_fc2)+b_fc2
 		
 		with tf.variable_scope('loss'):
-			loss=tf.reduce_mean(tf.squared_difference(self.actionInput,self.QValue))
+			Q_action=tf.reduce_sum(tf.multiply(self.QValue,self.actionInput),reduction_indices=1)
+			loss=tf.reduce_mean(tf.square(self.yInput-Q_action))
+#			loss=tf.reduce_mean(tf.squared_difference(self.actionInput,self.QValue))
 		
 		with tf.variable_scope('train'):
 			# self.trainStep=tf.train.RMSPropOptimizer(self.lr).minimize(loss)
@@ -133,7 +139,6 @@ class BrainDQN:
 		
 		# build target net
 		self.stateInputT=tf.placeholder(tf.float32,[None,80,80,4],name='input_')
-		self.yInput = tf.placeholder(tf.float32, [None],name='yinput_') 
 		with tf.variable_scope('target-net'):
 			c_names=['target-net params',tf.GraphKeys.GLOBAL_VARIABLES]
 			
@@ -143,8 +148,6 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv1=tf.get_variable('b_conv1',[32],\
 					initializer=b_initializer,collections=c_names)
-				h_conv1=tf.nn.relu(self.conv2d(self.stateInputT,w_conv1,4) + b_conv1)
-				h_pool1=self.max_pool_2x2(h_conv1)
 			
 			# second layer. 
 			with tf.variable_scope('conv2'):
@@ -152,7 +155,6 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv2=tf.get_variable('b_conv2',[64],\
 					initializer=b_initializer,collections=c_names)
-				h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
 			
 			# third layer.
 			with tf.variable_scope('conv3'):
@@ -160,8 +162,6 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv3=tf.get_variable('b_conv3',[64],\
 					initializer=b_initializer,collections=c_names)
-				h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
-				h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
 			
 			# first full link layer.
 			with tf.variable_scope('fc1'):
@@ -169,7 +169,6 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_fc1=tf.get_variable('b_fc1',[512],\
 					initializer=b_initializer,collections=c_names)
-				h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
 			
 			# Q value layer.
 			with tf.variable_scope('fc2'):
@@ -177,10 +176,18 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_fc2=tf.get_variable('b_fc2',[self.actions],\
 					initializer=b_initializer,collections=c_names)
-				self.QValueT=tf.matmul(h_fc1,w_fc2)+b_fc2
+				
+		with tf.variable_scope('target-net-data'):
+			h_conv1=tf.nn.relu(self.conv2d(self.stateInputT,w_conv1,4) + b_conv1)
+			h_pool1=self.max_pool_2x2(h_conv1)
+			h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
+			h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
+			h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
+			h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
+			self.QValueT=tf.matmul(h_fc1,w_fc2)+b_fc2
 		
 		with tf.name_scope('summaries'):
-			tf.summary.image('input_layer',self.stateInput)
+#			tf.summary.scalar('Q_action',Q_action)
 			tf.summary.scalar('loss',loss)
 			tf.summary.histogram('Q_values',self.QValue)
 
@@ -245,9 +252,15 @@ class BrainDQN:
 				print ("TIMESTEP", self.timeStep, "/ STATE", state, \
 					"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
 			
+			QValue=self.QValueT.eval(feed_dict={self.stateInputT:[newState]})
+			if terminal:
+				y=reward
+			else:
+				y=reward + self.gamma * np.max(QValue)
 			rs=self.merge.eval(feed_dict={
 				self.stateInput:[self.currentState],
-				self.actionInput:[action]
+				self.actionInput:[action],
+				self.yInput:[y]
 			})
 			self.writer.add_summary(rs,global_step=self.timeStep)
 			

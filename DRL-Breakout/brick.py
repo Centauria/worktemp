@@ -5,13 +5,9 @@ Created on Mon Mar  5 15:46:18 2018
 @author: qxb-810
 """
 
-import os
 import cv2
 import gym
-import tensorflow as tf
 import numpy as np
-import shutil
-import moviepy
 from BrainDQN_Nature import BrainDQN
 
 CNN_INPUT_WIDTH = 80

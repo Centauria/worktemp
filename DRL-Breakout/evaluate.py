@@ -44,6 +44,7 @@ def load_frames():
 		buffer.append(cv2.imread('temp/%s-%s.png'%(best,frame)))
 
 def run():
+	global best
 	for episode in range(n_episode):
 		frame=0
 		done=False
@@ -72,7 +73,7 @@ def make_movie():
 	animation.write_videofile('evaluation-%s.mp4'%agent.timeStep,fps=fps,codec='mpeg4')
 
 if __name__=='__main__':
-	# run()
-	# load_frames()
-	# make_movie_best()
+#	run()
+#	load_frames()
+#	make_movie_best()
 	make_movie()
