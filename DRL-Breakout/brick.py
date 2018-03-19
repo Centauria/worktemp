@@ -8,7 +8,7 @@ Created on Mon Mar  5 15:46:18 2018
 import cv2
 import gym
 import numpy as np
-from BrainDQN_Nature import BrainDQN
+from BrainDQN_Double import BrainDQN
 
 CNN_INPUT_WIDTH = 80
 CNN_INPUT_HEIGHT = 80
