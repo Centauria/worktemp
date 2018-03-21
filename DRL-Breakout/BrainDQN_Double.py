@@ -129,6 +129,15 @@ class BrainDQN:
 			h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
 			self.QValue=tf.matmul(h_fc1,w_fc2)+b_fc2
 		
+		with tf.variable_scope('loss'):
+			Q_action=tf.reduce_sum(tf.multiply(self.QValue,self.actionInput),reduction_indices=1)
+			loss=tf.reduce_mean(tf.square(self.yInput-Q_action))
+#			loss=tf.reduce_mean(tf.squared_difference(self.actionInput,self.QValue))
+		
+		with tf.variable_scope('train'):
+			# self.trainStep=tf.train.RMSPropOptimizer(self.lr).minimize(loss)
+			self.trainStep=tf.train.AdamOptimizer(1e-6).minimize(loss)
+		
 		# build target net
 		self.stateInputT=tf.placeholder(tf.float32,[None,80,80,4],name='input_')
 		with tf.variable_scope('target-net'):
@@ -178,16 +187,6 @@ class BrainDQN:
 			h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
 			self.QValueT=tf.matmul(h_fc1,w_fc2)+b_fc2
 		
-		with tf.variable_scope('loss'):
-			# Q_action=tf.reduce_sum(tf.multiply(self.QValue,self.actionInput),reduction_indices=1)
-			# loss=tf.reduce_mean(tf.square(self.yInput-Q_action))
-#			loss=tf.reduce_mean(tf.squared_difference(self.actionInput,self.QValue))
-			loss=tf.reduce_mean(tf.squared_difference(self.QValueT,self.QValue))
-		
-		with tf.variable_scope('train'):
-			# self.trainStep=tf.train.RMSPropOptimizer(self.lr).minimize(loss)
-			self.trainStep=tf.train.AdamOptimizer(1e-6).minimize(loss)
-		
 		with tf.name_scope('summaries'):
 #			tf.summary.scalar('Q_action',Q_action)
 			tf.summary.scalar('loss',loss)
@@ -203,19 +202,22 @@ class BrainDQN:
 
 		# Step 2: calculate y 
 		y_batch = np.zeros((self.batch_size))
-		QValue_batch = self.QValueT.eval(feed_dict={self.stateInputT:nextState_batch})
+		q_next_batch = self.QValueT.eval(feed_dict={self.stateInputT:nextState_batch})
+		q_eval_next_batch=self.QValue.eval(feed_dict={self.stateInput:nextState_batch})
+		
+		max_act_next=np.argmax(q_eval_next_batch,axis=1)
+		
 		for i in range(0,self.batch_size):
 			terminal = minibatch[i][4]
 			if terminal:
 				y_batch[i]=reward_batch[i]
 			else:
-				y_batch[i]=reward_batch[i] + self.gamma * np.max(QValue_batch[i])
+				y_batch[i]=reward_batch[i] + self.gamma * q_next_batch[i,max_act_next[i]]
 
 		self.trainStep.run(feed_dict={
 			self.yInput : y_batch,
 			self.actionInput : action_batch,
-			self.stateInput : state_batch,
-			self.stateInputT : state_batch
+			self.stateInput : state_batch
 		})
 
 		# save network every 100000 iteration
@@ -261,7 +263,6 @@ class BrainDQN:
 			else:
 				y=reward + self.gamma * np.max(QValue)
 			rs=self.merge.eval(feed_dict={
-				self.stateInputT:[self.currentState],
 				self.stateInput:[self.currentState],
 				self.actionInput:[action],
 				self.yInput:[y]
