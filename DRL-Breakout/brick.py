@@ -8,7 +8,7 @@ Created on Mon Mar  5 15:46:18 2018
 import cv2
 import gym
 import numpy as np
-from BrainDQN_Double import BrainDQN
+from BrainDQN_Dueling import BrainDQN
 
 CNN_INPUT_WIDTH = 80
 CNN_INPUT_HEIGHT = 80
@@ -70,6 +70,26 @@ def main():
 				agent.setPerception(next_state,action,reward,done,episode)
 				if done:
 					break
+			if episode%500==100:
+				agent.e_greedy=False
+				for e in range(10):
+					state=env.reset()
+					state=ImageProcess.reshapeHalf(state)
+					
+					agent.setInitState(state)
+					life=5
+					for step in range(MAX_STEP):
+						# env.render()
+						action=agent.getAction()
+						next_state,reward,done,info=env.step(action)
+						next_state=np.reshape(ImageProcess.reshapeHalf(next_state),(80,80,1))
+						if info['ale.lives']<life:
+							reward-=(10*(life-info['ale.lives']))
+							life=info['ale.lives']
+						agent.setPerception(next_state,action,reward,done,episode)
+						if done:
+							break
+				agent.e_greedy=True
 			
 	finally:
 		pass
