@@ -54,7 +54,7 @@ for f in os.listdir('.'):
 				print('Interrupted, ignoring the following data...')
 				pass
 			finally:
-				for e in zip(eval_episode,eval_reward):
+				for e in zip(eval_episode,np.array(eval_reward)/10):
 					print('Episode: %i, Average reward: %d'%e)
 				plt.figure(1)
 				x=range(len(step))

@@ -12,7 +12,7 @@ from collections import deque
 # Hyper Parameters:
 FRAME_PER_ACTION = 1
 OBSERVE = 500. # timesteps to observe before training
-EXPLORE = 50000000. #200000 #frames over which to anneal epsilon
+EXPLORE = 100000000. #200000 #frames over which to anneal epsilon
 SAVE_TIME=10000
 
 class BrainDQN:

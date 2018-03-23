@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Created on Mon Mar 19 10:30:03 2018
+Created on Thu Mar 22 09:20:32 2018
 
 @author: qxb-810
 """
@@ -91,6 +91,8 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv1=tf.get_variable('b_conv1',[32],\
 					initializer=b_initializer,collections=c_names)
+				h_conv1=tf.nn.relu(self.conv2d(self.stateInput,w_conv1,4) + b_conv1)
+				h_pool1=self.max_pool_2x2(h_conv1)
 			
 			# second layer. 
 			with tf.variable_scope('conv2'):
@@ -98,6 +100,7 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv2=tf.get_variable('b_conv2',[64],\
 					initializer=b_initializer,collections=c_names)
+				h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
 			
 			# third layer.
 			with tf.variable_scope('conv3'):
@@ -105,6 +108,8 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv3=tf.get_variable('b_conv3',[64],\
 					initializer=b_initializer,collections=c_names)
+				h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
+				h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
 			
 			# first full link layer.
 			with tf.variable_scope('fc1'):
@@ -112,22 +117,26 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_fc1=tf.get_variable('b_fc1',[512],\
 					initializer=b_initializer,collections=c_names)
+				h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
 			
 			# Q value layer.
-			with tf.variable_scope('fc2'):
-				w_fc2=tf.get_variable('w_fc2',[512,self.actions],\
+			with tf.variable_scope('fc2-V'):
+				w_fc2_V=tf.get_variable('w_fc2_V',[512,self.actions],\
 					initializer=w_initializer,collections=c_names)
-				b_fc2=tf.get_variable('b_fc2',[self.actions],\
+				b_fc2_V=tf.get_variable('b_fc2_V',[1],\
 					initializer=b_initializer,collections=c_names)
+				V=tf.matmul(h_fc1,w_fc2_V)+b_fc2_V
 			
-		with tf.variable_scope('eval-net-data'):
-			h_conv1=tf.nn.relu(self.conv2d(self.stateInput,w_conv1,4) + b_conv1)
-			h_pool1=self.max_pool_2x2(h_conv1)
-			h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
-			h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
-			h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
-			h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
-			self.QValue=tf.matmul(h_fc1,w_fc2)+b_fc2
+			# Q value layer.
+			with tf.variable_scope('fc2-A'):
+				w_fc2_A=tf.get_variable('w_fc2_A',[512,self.actions],\
+					initializer=w_initializer,collections=c_names)
+				b_fc2_A=tf.get_variable('b_fc2_A',[self.actions],\
+					initializer=b_initializer,collections=c_names)
+				A=tf.matmul(h_fc1,w_fc2_A)+b_fc2_A
+			
+			with tf.variable_scope('Q'):
+				self.QValue=V+(A-tf.reduce_mean(A,axis=1,keep_dims=True))
 		
 		with tf.variable_scope('loss'):
 			Q_action=tf.reduce_sum(tf.multiply(self.QValue,self.actionInput),reduction_indices=1)
@@ -149,6 +158,8 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv1=tf.get_variable('b_conv1',[32],\
 					initializer=b_initializer,collections=c_names)
+				h_conv1=tf.nn.relu(self.conv2d(self.stateInputT,w_conv1,4) + b_conv1)
+				h_pool1=self.max_pool_2x2(h_conv1)
 			
 			# second layer. 
 			with tf.variable_scope('conv2'):
@@ -156,6 +167,7 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv2=tf.get_variable('b_conv2',[64],\
 					initializer=b_initializer,collections=c_names)
+				h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
 			
 			# third layer.
 			with tf.variable_scope('conv3'):
@@ -163,6 +175,8 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_conv3=tf.get_variable('b_conv3',[64],\
 					initializer=b_initializer,collections=c_names)
+				h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
+				h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
 			
 			# first full link layer.
 			with tf.variable_scope('fc1'):
@@ -170,22 +184,26 @@ class BrainDQN:
 					initializer=w_initializer,collections=c_names)
 				b_fc1=tf.get_variable('b_fc1',[512],\
 					initializer=b_initializer,collections=c_names)
+				h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
 			
 			# Q value layer.
-			with tf.variable_scope('fc2'):
-				w_fc2=tf.get_variable('w_fc2',[512,self.actions],\
+			with tf.variable_scope('fc2-V'):
+				w_fc2_V=tf.get_variable('w_fc2_V',[512,self.actions],\
 					initializer=w_initializer,collections=c_names)
-				b_fc2=tf.get_variable('b_fc2',[self.actions],\
+				b_fc2_V=tf.get_variable('b_fc2_V',[1],\
 					initializer=b_initializer,collections=c_names)
+				V=tf.matmul(h_fc1,w_fc2_V)+b_fc2_V
+			
+			# Q value layer.
+			with tf.variable_scope('fc2-A'):
+				w_fc2_A=tf.get_variable('w_fc2_A',[512,self.actions],\
+					initializer=w_initializer,collections=c_names)
+				b_fc2_A=tf.get_variable('b_fc2_A',[self.actions],\
+					initializer=b_initializer,collections=c_names)
+				A=tf.matmul(h_fc1,w_fc2_A)+b_fc2_A
 				
-		with tf.variable_scope('target-net-data'):
-			h_conv1=tf.nn.relu(self.conv2d(self.stateInputT,w_conv1,4) + b_conv1)
-			h_pool1=self.max_pool_2x2(h_conv1)
-			h_conv2=tf.nn.relu(self.conv2d(h_pool1,w_conv2,2) + b_conv2)
-			h_conv3=tf.nn.relu(self.conv2d(h_conv2,w_conv3,1)+b_conv3)
-			h_conv3_flat=tf.reshape(h_conv3,[-1,1600])
-			h_fc1=tf.nn.relu(tf.matmul(h_conv3_flat,w_fc1)+b_fc1)
-			self.QValueT=tf.matmul(h_fc1,w_fc2)+b_fc2
+			with tf.variable_scope('Q'):
+				self.QValueT=V+(A-tf.reduce_mean(A,axis=1,keep_dims=True))
 		
 		with tf.name_scope('summaries'):
 #			tf.summary.scalar('Q_action',Q_action)
@@ -202,17 +220,13 @@ class BrainDQN:
 
 		# Step 2: calculate y 
 		y_batch = np.zeros((self.batch_size))
-		q_next_batch = self.QValueT.eval(feed_dict={self.stateInputT:nextState_batch})
-		q_eval_next_batch=self.QValue.eval(feed_dict={self.stateInput:nextState_batch})
-		
-		max_act_next=np.argmax(q_eval_next_batch,axis=1)
-		
+		QValue_batch = self.QValueT.eval(feed_dict={self.stateInputT:nextState_batch})
 		for i in range(0,self.batch_size):
 			terminal = minibatch[i][4]
 			if terminal:
 				y_batch[i]=reward_batch[i]
 			else:
-				y_batch[i]=reward_batch[i] + self.gamma * q_next_batch[i,max_act_next[i]]
+				y_batch[i]=reward_batch[i] + self.gamma * np.max(QValue_batch[i])
 
 		self.trainStep.run(feed_dict={
 			self.yInput : y_batch,
