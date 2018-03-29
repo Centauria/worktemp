@@ -4,7 +4,7 @@ Created on Mon Mar  5 15:46:18 2018
 
 @author: qxb-810
 """
-
+from __future__ import print_function
 import cv2
 import gym
 import numpy as np
@@ -19,7 +19,7 @@ REWARD_COFF = 3.0
 
 ENV_NAME='Breakout-v4'
 EPISODE=100000
-MAX_STEP=1500
+MAX_STEP=3000
 
 class ImageProcess:
 	# this is the ColorMat2B function

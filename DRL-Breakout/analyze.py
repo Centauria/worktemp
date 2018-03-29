@@ -4,7 +4,7 @@ Created on Thu Mar 15 11:44:25 2018
 
 @author: qxb-810
 """
-
+from __future__ import print_function
 import os
 import re
 from tqdm import tqdm

@@ -4,7 +4,7 @@ Created on Thu Mar 22 09:20:32 2018
 
 @author: qxb-810
 """
-
+from __future__ import print_function
 import tensorflow as tf 
 import numpy as np 
 import random
@@ -244,54 +244,55 @@ class BrainDQN:
 		
 	def setPerception(self,nextObservation,action_index,reward,terminal,episode):
 		#newState = np.append(nextObservation,self.currentState[:,:,1:],axis = 2)
-		action=np.zeros(self.actions)
-		action[action_index]=1
-		newState = np.append(self.currentState[:,:,1:],nextObservation,axis = 2)
-		self.replayMemory.append((self.currentState,action,reward,newState,terminal))
-		if len(self.replayMemory) > self.memory_size:
-			self.replayMemory.popleft()
-		if self.e_greedy and self.observe_time<OBSERVE:
-			self.observe_time+=1
-			state = "observe"
-			# print info
-			if self.print_log:
-				print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-					"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
-		elif self.e_greedy:
-			# Train the network
-			self.trainQNetwork()
-			
-			if self.timeStep <= EXPLORE:
-				state = "explore"
+		if self.e_greedy:
+			action=np.zeros(self.actions)
+			action[action_index]=1
+			newState = np.append(self.currentState[:,:,1:],nextObservation,axis = 2)
+			self.replayMemory.append((self.currentState,action,reward,newState,terminal))
+			if len(self.replayMemory) > self.memory_size:
+				self.replayMemory.popleft()
+			if self.observe_time<OBSERVE:
+				self.observe_time+=1
+				state = "observe"
+				# print info
+				if self.print_log:
+					print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+						"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
 			else:
-				state = "train"
+				# Train the network
+				self.trainQNetwork()
 				
-			# print info
-			if self.print_log:
-				print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-					"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
-			
-			QValue=self.QValueT.eval(feed_dict={self.stateInputT:[newState]})
-			if terminal:
-				y=reward
-			else:
-				y=reward + self.gamma * np.max(QValue)
-			rs=self.merge.eval(feed_dict={
-				self.stateInput:[self.currentState],
-				self.actionInput:[action],
-				self.yInput:[y]
-			})
-			self.writer.add_summary(rs,global_step=self.timeStep)
-			
-			self.timeStep += 1
+				if self.timeStep <= EXPLORE:
+					state = "explore"
+				else:
+					state = "train"
+					
+				# print info
+				if self.print_log:
+					print ("TIMESTEP", self.timeStep, "/ STATE", state, \
+						"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+				
+				QValue=self.QValueT.eval(feed_dict={self.stateInputT:[newState]})
+				if terminal:
+					y=reward
+				else:
+					y=reward + self.gamma * np.max(QValue)
+				rs=self.merge.eval(feed_dict={
+					self.stateInput:[self.currentState],
+					self.actionInput:[action],
+					self.yInput:[y]
+				})
+				self.writer.add_summary(rs,global_step=self.timeStep)
+				
+				self.timeStep += 1
+				
+			self.currentState = newState
 		else:
 			state="evaluate"
 			# print info
 			if self.print_log:
 				print ("TIMESTEP", self.timeStep, "/ STATE", state, \
 					"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
-		
-		self.currentState = newState
 
 	def getAction(self):
 		QValue = self.QValue.eval(feed_dict= {self.stateInput:[self.currentState]})[0]

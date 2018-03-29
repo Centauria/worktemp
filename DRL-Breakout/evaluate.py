@@ -4,7 +4,7 @@ Created on Wed Mar 14 10:14:22 2018
 
 @author: qxb-810
 """
-
+from __future__ import print_function
 import gym
 import cv2
 import numpy as np
