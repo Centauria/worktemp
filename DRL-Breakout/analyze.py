@@ -15,7 +15,7 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 filename_pattern='slurm-[0-9]*.out'
-content_pattern='TIMESTEP ([0-9]*) / STATE ([a-z]*) / EPSILON (-?\d+\.?\d*e?-?\d?) / EPISODE ([0-9]*) / REWARD (-?[.0-9]*)'
+content_pattern='TIMESTEP ([0-9]*) / STATE ([a-z]*) / EPSILON (-?\d+\.?\d*e?-?\d?) / EPISODE ([0-9]*) / ACTION [0-9] / REWARD (-?[.0-9]*)'
 
 step=array('i')
 epsilon=array('d')

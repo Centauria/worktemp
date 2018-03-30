@@ -257,7 +257,8 @@ class BrainDQN:
 				# print info
 				if self.print_log:
 					print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-						"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+						"/ EPSILON", self.epsilon, "/ EPISODE", episode, \
+						"/ ACTION", action_index, "/ REWARD", reward)
 			else:
 				# Train the network
 				self.trainQNetwork()
@@ -270,7 +271,8 @@ class BrainDQN:
 				# print info
 				if self.print_log:
 					print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-						"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+						"/ EPSILON", self.epsilon, "/ EPISODE", episode, \
+						"/ ACTION", action_index, "/ REWARD", reward)
 				
 				QValue=self.QValueT.eval(feed_dict={self.stateInputT:[newState]})
 				if terminal:
@@ -285,14 +287,15 @@ class BrainDQN:
 				self.writer.add_summary(rs,global_step=self.timeStep)
 				
 				self.timeStep += 1
-				
-			self.currentState = newState
 		else:
 			state="evaluate"
 			# print info
 			if self.print_log:
 				print ("TIMESTEP", self.timeStep, "/ STATE", state, \
-					"/ EPSILON", self.epsilon, "/ EPISODE", episode, "/ REWARD", reward)
+						"/ EPSILON", self.epsilon, "/ EPISODE", episode, \
+						"/ ACTION", action_index, "/ REWARD", reward)
+				
+		self.currentState = newState
 
 	def getAction(self):
 		QValue = self.QValue.eval(feed_dict= {self.stateInput:[self.currentState]})[0]

@@ -8,7 +8,7 @@ from __future__ import print_function
 import cv2
 import gym
 import numpy as np
-from BrainDQN_Dueling import BrainDQN
+from BrainDQN_Nature import BrainDQN
 
 CNN_INPUT_WIDTH = 80
 CNN_INPUT_HEIGHT = 80

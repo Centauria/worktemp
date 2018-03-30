@@ -13,7 +13,7 @@ from BrainDQN_Nature import BrainDQN
 from brick import ImageProcess,ENV_NAME
 
 env=gym.make(ENV_NAME)
-agent=BrainDQN(env.action_space.n,print_log=False)
+agent=BrainDQN(env.action_space.n,e_greedy=False,print_log=False)
 
 n_episode=10
 best=0
