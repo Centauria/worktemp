@@ -15,7 +15,7 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 filename_pattern='slurm-[0-9]*.out'
-content_pattern='TIMESTEP ([0-9]*) / STATE ([a-z]*) / EPSILON (-?\d+\.?\d*e?-?\d?) / EPISODE ([0-9]*) / ACTION [0-9] / REWARD (-?[.0-9]*)'
+content_pattern='TIMESTEP ([0-9]*) / STATE ([a-z]*) / EPSILON (-?\d+\.?\d*e?-?\d+?) / EPISODE ([0-9]*) / ACTION [0-9] / REWARD (-?[.0-9]*)'
 
 step=array('i')
 epsilon=array('d')
@@ -36,7 +36,7 @@ for f in os.listdir('.'):
 						episode=int(m.group(4))
 						state=m.group(2)
 						r=float(m.group(5))
-						if state=='explore' or state=='observe':
+						if state=='explore' or state=='observe' or state=='train':
 							if episode==len(step):
 								step.append(int(m.group(1)))
 								epsilon.append(float(m.group(3)))
@@ -54,8 +54,9 @@ for f in os.listdir('.'):
 				print('Interrupted, ignoring the following data...')
 				pass
 			finally:
-				for e in zip(eval_episode,np.array(eval_reward)/10):
-					print('Episode: %i, Average reward: %d'%e)
+				with open("episode-reward-%i.txt"%episode,'w') as result_file:
+					for e in zip(eval_episode,np.array(eval_reward)/10):
+						print('Episode: %i, Average reward: %d'%e,file=result_file)
 				plt.figure(1)
 				x=range(len(step))
 				plt.plot(x,step)
