@@ -40,15 +40,15 @@ for f in os.listdir('.'):
 							if episode==len(step):
 								step.append(int(m.group(1)))
 								epsilon.append(float(m.group(3)))
-								reward.append(0 if r==-10 else r)
+								reward.append(0 if r<0 else r)
 							else:
-								reward[episode]+=(0 if r==-10 else r)
+								reward[episode]+=(0 if r<0 else r)
 						elif state=='evaluate':
 							if len(eval_episode)==0 or eval_episode[-1]!=episode:
 								eval_episode.append(episode)
-								eval_reward.append(0 if r==-10 else r)
+								eval_reward.append(0 if r<0 else r)
 							else:
-								eval_reward[-1]+=(0 if r==-10 else r)
+								eval_reward[-1]+=(0 if r<0 else r)
 							
 			except KeyboardInterrupt:
 				print('Interrupted, ignoring the following data...')

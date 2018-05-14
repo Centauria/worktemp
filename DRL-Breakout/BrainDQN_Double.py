@@ -63,6 +63,8 @@ class BrainDQN:
 		self.writer=tf.summary.FileWriter("logs/", self.session.graph)
 		
 		self.session.run(tf.global_variables_initializer())
+		# self.session.run(self.copyTargetQNetworkOperation)
+
 		checkpoint = tf.train.get_checkpoint_state("saved_networks")
 		if checkpoint and checkpoint.model_checkpoint_path:
 			self.saver.restore(self.session, checkpoint.model_checkpoint_path)

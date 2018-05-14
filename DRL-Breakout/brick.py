@@ -65,7 +65,7 @@ def main():
 				next_state,reward,done,info=env.step(action)
 				next_state=np.reshape(ImageProcess.reshapeHalf(next_state),(80,80,1))
 				if info['ale.lives']<life:
-					reward-=(10*(life-info['ale.lives']))
+					#reward-=(life-info['ale.lives'])
 					life=info['ale.lives']
 				agent.setPerception(next_state,action,reward,done,episode)
 				if done:
@@ -84,7 +84,7 @@ def main():
 						next_state,reward,done,info=env.step(action)
 						next_state=np.reshape(ImageProcess.reshapeHalf(next_state),(80,80,1))
 						if info['ale.lives']<life:
-							reward-=(10*(life-info['ale.lives']))
+							#reward-=(life-info['ale.lives'])
 							life=info['ale.lives']
 						agent.setPerception(next_state,action,reward,done,episode)
 						if done:
