@@ -123,7 +123,7 @@ class BrainDQN:
 			
 			# Q value layer.
 			with tf.variable_scope('fc2-V'):
-				w_fc2_V=tf.get_variable('w_fc2_V',[512,self.actions],\
+				w_fc2_V=tf.get_variable('w_fc2_V',[512,1],\
 					initializer=w_initializer,collections=c_names)
 				b_fc2_V=tf.get_variable('b_fc2_V',[1],\
 					initializer=b_initializer,collections=c_names)
