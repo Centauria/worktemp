@@ -138,7 +138,7 @@ class BrainDQN:
 				A=tf.matmul(h_fc1,w_fc2_A)+b_fc2_A
 			
 			with tf.variable_scope('Q'):
-				self.QValue=V+(A-tf.reduce_mean(A,axis=1,keep_dims=True))
+				self.QValue=tf.tile(V,multiples=[4])+(A-tf.reduce_mean(A,axis=1,keep_dims=True))
 		
 		with tf.variable_scope('loss'):
 			Q_action=tf.reduce_sum(tf.multiply(self.QValue,self.actionInput),reduction_indices=1)
